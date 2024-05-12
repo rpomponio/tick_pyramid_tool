@@ -11,97 +11,83 @@ import io
 # Plotly configuration
 config = {'displayModeBar': False}
 
-dummy = dict(
-    sends=[0, 0, 0, 1, 0, 1, 3, 12, 5, 4, 15, 18, 16, 17, 4, 2],
-    grade=["5.12d", "5.12c", "5.12b", "5.12a", "5.11d",
-           "5.11c", "5.11b", "5.11a", "5.10d", "5.10c",
-           "5.10b", "5.10a", "5.9", "5.8", "5.7", "5.easy"])
-
 # Create a Dash app
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, external_stylesheets=['https://codepen.io/chriddyp/pen/bWLwgP.css'])
 
 # Define the layout of the app
 app.layout = html.Div([
+    html.Div(children=['Upload your climbing ticks to view your Route Pyramid'],
+             style={'fontSize': '18px'}),
     dcc.Upload(
         id='upload-data',
         children=html.Div(['Drag and Drop or ',html.A('Select Files')]),
-        style={'width': '85vw',
-               'height': '60px',
-               'lineHeight': '60px',
+        style={'width': '75vw',
+               'height': '30px',
+               'lineHeight': '30px',
                'borderWidth': '1px',
                'borderStyle': 'dashed',
                'borderRadius': '5px',
                'textAlign': 'center',
                'margin': '10px'},
                multiple=False),
-    html.Div(id='output-data-upload'),
-    html.H3('Route Filters'),
-    dcc.Dropdown(['Sport', 'Trad', 'Toprope'], 'Sport',
-                searchable=False, id='type-dropdown',
-                style={'width':'85vw'}),
-    dcc.Dropdown(['Onsight', 'Flash', 'Redpoint', 'Pinkpoint', 'Fell/Hung'],
+    html.Div(children=['Route Filters'], style={'fontSize': '18px'}),
+    dcc.Dropdown(['Sport', 'Trad', 'TR'], ['Sport'],
+                multi=True, searchable=False, id='type-dropdown',
+                style={'width': '75vw'}),
+    dcc.Dropdown(['Onsight', 'Flash', 'Redpoint', 'Pinkpoint', 'Fell/Hung', 'N/A'],
                  ['Onsight', 'Flash', 'Redpoint'],
                  multi=True, searchable=False, id='send-dropdown',
-                 style={'width':'85vw'}),
-    html.H3('Route Pyramid'),
+                 style={'width':'75vw'}),
     dcc.Graph(id='graph-pyramid', config=config,
-              style={'width':'90vw', 'height':'90vh'})
-    
+              style={'width':'80vw', 'height':'80vh'})
 ])
 
-def parse_contents(contents, filename, criteria):
-    content_type, content_string = contents.split(',')
+def parse_contents(contents, filename, criteria_type, criteria_send):
+    _, content_string = contents.split(',')
 
-    # Decode the base64 string
+    # Decode the base64 string & Read CSV
     decoded = io.StringIO(base64.b64decode(content_string).decode('utf-8'))
-
-    # Read the CSV
     ticks = pd.read_csv(decoded)
 
     # Filter the dataframe based on criteria
-    ticks = ticks.loc[ticks['Route Type']==criteria, :]
+    ticks = ticks.loc[ticks['Route Type'].isin(criteria_type), :]
+    if 'N/A' in criteria_send:
+        ticks = ticks.loc[ticks['Lead Style'].isna() | ticks['Lead Style'].isin(criteria_send), :]
+    else:
+        ticks = ticks.loc[ticks['Lead Style'].isin(criteria_send), :]
 
-    # Parse file so that climbing Pyramid is calculable
+    # Calculate climbing pyramid metrics
     ticks['Grade'] = pd.cut(
         ticks['Rating Code'],
         bins=[0, 1700, 1900, 2200, 2500, 2800, 3100, 3400, 3700, 4800, 5100,
               5400, 5500, 6800, 7100, 7400, 7500],
         labels=["5.easy", "5.7", "5.8", "5.9", "5.10a", "5.10b", "5.10c", "5.10d",
                 "5.11a", "5.11b", "5.11c", "5.11d", "5.12a", "5.12b", "5.12c", "5.12d"])
-    counts = ticks.groupby('Grade')['URL'].nunique().reset_index()
-
-    # Display the filtered dataframe
-    table = html.Div([
-        html.H5(f'Loaded file: {filename}'),
-        html.H6(f'Filtered dataframe based on {criteria}:'),
-        html.Table([
-            html.Thead(
-                html.Tr([html.Th(col) for col in counts.columns])
-            ),
-            html.Tbody([
-                html.Tr([
-                    html.Td(counts.iloc[i][col]) for col in counts.columns
-                ]) for i in range(min(len(counts), 10))
-            ])
-        ])
-    ])
+    counts = ticks.groupby('Grade', observed=False)['URL'].nunique().reset_index()
+    counts.columns = ['Grade', 'Routes']
+    counts.sort_values(by='Grade', ascending=False, inplace=True)
 
     # Create a chart based on the filtered dataframe
-    fig = px.funnel(counts, x='URL', y='Grade')
+    fig = px.funnel(counts, x='Routes', y='Grade', title='Route Pyramid')
 
-    return table, fig
+    return fig
 
-@app.callback([Output('output-data-upload', 'children'),
-               Output('graph-pyramid', 'figure')],
+@app.callback(Output('graph-pyramid', 'figure'),
               [Input('upload-data', 'contents'),
-               Input('type-dropdown', 'value')],
+               Input('type-dropdown', 'value'),
+               Input('send-dropdown', 'value')],
               [dash.dependencies.State('upload-data', 'filename')])
-def update_output(contents, criteria, filename):
-    if contents is not None:
-        children_table, fig = parse_contents(contents, filename, criteria)
-        return children_table, fig
+def update_output(contents, criteria_type, criteria_send, filename):
+    if contents is None:
+        dummy = dict(
+            Routes=[1, 0, 1, 0, 2, 3, 5, 8, 16, 32, 64, 80, 70, 90, 100, 120],
+            Grade=["5.12d", "5.12c", "5.12b", "5.12a", "5.11d",
+                   "5.11c", "5.11b", "5.11a", "5.10d", "5.10c",
+                   "5.10b", "5.10a", "5.9", "5.8", "5.7", "5.easy"])
+        return px.funnel(dummy, x='Routes', y='Grade', title='Dummy Data')
     else:
-        return None, px.funnel(dummy, x='sends', y='grade')
+        fig = parse_contents(contents, filename, criteria_type, criteria_send)
+        return fig
 
 if __name__ == '__main__':
     app.run_server(debug=True)
