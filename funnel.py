@@ -11,13 +11,11 @@ import io
 # Plotly configuration
 config = {'displayModeBar': False}
 
-data = dict(
-    type=[0, 0, 0, 1, 0, 1, 3, 12, 5, 4, 15, 18, 16, 17, 4, 2],
+dummy = dict(
     sends=[0, 0, 0, 1, 0, 1, 3, 12, 5, 4, 15, 18, 16, 17, 4, 2],
     grade=["5.12d", "5.12c", "5.12b", "5.12a", "5.11d",
            "5.11c", "5.11b", "5.11a", "5.10d", "5.10c",
            "5.10b", "5.10a", "5.9", "5.8", "5.7", "5.easy"])
-fig = px.funnel(data, x='sends', y='grade')
 
 # Create a Dash app
 app = dash.Dash(__name__)
@@ -34,7 +32,8 @@ app.layout = html.Div([
                'borderStyle': 'dashed',
                'borderRadius': '5px',
                'textAlign': 'center',
-               'margin': '10px'}),
+               'margin': '10px'},
+               multiple=False),
     html.Div(id='output-data-upload'),
     html.H3('Route Filters'),
     dcc.Dropdown(['Sport', 'Trad', 'Toprope'], 'Sport',
@@ -45,12 +44,12 @@ app.layout = html.Div([
                  multi=True, searchable=False, id='send-dropdown',
                  style={'width':'85vw'}),
     html.H3('Route Pyramid'),
-    dcc.Graph(figure=fig, config=config,
-            style={'width':'90vw', 'height':'90vh'})
+    dcc.Graph(id='graph-pyramid', config=config,
+              style={'width':'90vw', 'height':'90vh'})
     
 ])
 
-def parse_contents(contents, filename, route_type):
+def parse_contents(contents, filename, criteria):
     content_type, content_string = contents.split(',')
 
     # Decode the base64 string
@@ -59,6 +58,9 @@ def parse_contents(contents, filename, route_type):
     # Read the CSV
     ticks = pd.read_csv(decoded)
 
+    # Filter the dataframe based on criteria
+    ticks = ticks.loc[ticks['Route Type']==criteria, :]
+
     # Parse file so that climbing Pyramid is calculable
     ticks['Grade'] = pd.cut(
         ticks['Rating Code'],
@@ -66,20 +68,40 @@ def parse_contents(contents, filename, route_type):
               5400, 5500, 6800, 7100, 7400, 7500],
         labels=["5.easy", "5.7", "5.8", "5.9", "5.10a", "5.10b", "5.10c", "5.10d",
                 "5.11a", "5.11b", "5.11c", "5.11d", "5.12a", "5.12b", "5.12c", "5.12d"])
-    ticks = ticks.loc[ticks['Route Type']==route_type, :]
-    counts = ticks.groupby('Grade')['URL'].nunique()
+    counts = ticks.groupby('Grade')['URL'].nunique().reset_index()
 
-    # Return the number of routes per grade
-    return counts
+    # Display the filtered dataframe
+    table = html.Div([
+        html.H5(f'Loaded file: {filename}'),
+        html.H6(f'Filtered dataframe based on {criteria}:'),
+        html.Table([
+            html.Thead(
+                html.Tr([html.Th(col) for col in counts.columns])
+            ),
+            html.Tbody([
+                html.Tr([
+                    html.Td(counts.iloc[i][col]) for col in counts.columns
+                ]) for i in range(min(len(counts), 10))
+            ])
+        ])
+    ])
 
-@app.callback(Output('output-data-upload', 'children'),
+    # Create a chart based on the filtered dataframe
+    fig = px.funnel(counts, x='URL', y='Grade')
+
+    return table, fig
+
+@app.callback([Output('output-data-upload', 'children'),
+               Output('graph-pyramid', 'figure')],
               [Input('upload-data', 'contents'),
-               Input('type-dropdown', 'route_type')],
+               Input('type-dropdown', 'value')],
               [dash.dependencies.State('upload-data', 'filename')])
-def update_output(contents, filename, route_type):
+def update_output(contents, criteria, filename):
     if contents is not None:
-        children = parse_contents(contents, filename, route_type)
-        return children
+        children_table, fig = parse_contents(contents, filename, criteria)
+        return children_table, fig
+    else:
+        return None, px.funnel(dummy, x='sends', y='grade')
 
 if __name__ == '__main__':
     app.run_server(debug=True)
