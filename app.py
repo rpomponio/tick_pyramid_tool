@@ -16,12 +16,12 @@ app = dash.Dash(__name__, external_stylesheets=['https://codepen.io/chriddyp/pen
 
 # Define the layout of the app
 app.layout = html.Div([
-    html.Div(children=['Upload your climbing ticks to view your Route Pyramid'],
+    html.Div(children=['Upload your climbing ticks.csv to view your Route Pyramid!'],
              style={'fontSize': '18px'}),
     dcc.Upload(
         id='upload-data',
         children=html.Div(['Drag and Drop or ',html.A('Select Files')]),
-        style={'width': '75vw',
+        style={'width': '74vw',
                'height': '30px',
                'lineHeight': '30px',
                'borderWidth': '1px',
@@ -91,7 +91,7 @@ def update_output(contents, criteria_type, criteria_send, criteria_multi, filena
             Grade=["5.12d", "5.12c", "5.12b", "5.12a", "5.11d",
                    "5.11c", "5.11b", "5.11a", "5.10d", "5.10c",
                    "5.10b", "5.10a", "5.9", "5.8", "5.7", "5.easy"])
-        return px.funnel(dummy, x='Routes', y='Grade', title='Dummy Data')
+        return px.funnel(dummy, x='Routes', y='Grade', title="(Demo Data) Route Pyramid")
     else:
         fig = parse_contents(contents, filename, criteria_type, criteria_send, criteria_multi)
         return fig
