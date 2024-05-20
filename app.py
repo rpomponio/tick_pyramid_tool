@@ -38,6 +38,9 @@ app.layout = html.Div([
                  ['Onsight', 'Flash', 'Redpoint'],
                  multi=True, searchable=False, id='send-dropdown',
                  style={'width':'75vw'}),
+    dcc.Dropdown(list(range(2010, 2025)), list(range(2020, 2024)), 
+                 multi=True, searchable=False, id='year-dropdown',
+                 style={'width':'75vw'}),
     dcc.Checklist(['Include Multipitch Routes'],
                   ['Include Multipitch Routes'],
                   id='multi-filter'),
@@ -45,15 +48,16 @@ app.layout = html.Div([
               style={'width':'80vw', 'height':'80vh'})
 ])
 
-def parse_contents(contents, filename, criteria_type, criteria_send, criteria_multi):
+def parse_contents(contents, filename, criteria_type, criteria_send, criteria_year, criteria_multi):
     _, content_string = contents.split(',')
 
     # Decode the base64 string & Read CSV
     decoded = io.StringIO(base64.b64decode(content_string).decode('utf-8'))
-    ticks = pd.read_csv(decoded)
+    ticks = pd.read_csv(decoded, parse_dates=['Date'])
 
     # Filter the dataframe based on criteria
     ticks = ticks.loc[ticks['Route Type'].isin(criteria_type), :]
+    ticks = ticks.loc[ticks['Date'].dt.year.isin(criteria_year), :]
     if 'N/A' in criteria_send:
         ticks = ticks.loc[ticks['Lead Style'].isna() | ticks['Lead Style'].isin(criteria_send), :]
     else:
@@ -82,9 +86,10 @@ def parse_contents(contents, filename, criteria_type, criteria_send, criteria_mu
         [Input('upload-data', 'contents'),
          Input('type-dropdown', 'value'),
          Input('send-dropdown', 'value'),
+         Input('year-dropdown', 'value'),
          Input('multi-filter', 'value')],
          [dash.dependencies.State('upload-data', 'filename')])
-def update_output(contents, criteria_type, criteria_send, criteria_multi, filename):
+def update_output(contents, criteria_type, criteria_send, criteria_year, criteria_multi, filename):
     if contents is None:
         dummy = dict(
             Routes=[1, 0, 1, 0, 2, 3, 5, 8, 16, 32, 64, 80, 70, 90, 100, 120],
@@ -93,7 +98,8 @@ def update_output(contents, criteria_type, criteria_send, criteria_multi, filena
                    "5.10b", "5.10a", "5.9", "5.8", "5.7", "5.easy"])
         return px.funnel(dummy, x='Routes', y='Grade', title="(Demo Data) Route Pyramid")
     else:
-        fig = parse_contents(contents, filename, criteria_type, criteria_send, criteria_multi)
+        fig = parse_contents(contents, filename, criteria_type, criteria_send, criteria_year,
+                             criteria_multi)
         return fig
 
 if __name__ == '__main__':
