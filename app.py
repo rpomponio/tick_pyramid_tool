@@ -8,6 +8,18 @@ import pandas as pd
 import base64
 import io
 
+# constant for grade/code conversion
+GRADES = [{"value":1700, "label":"5.easy"}, {"value":1900, "label":"5.7"},
+          {"value":2200, "label":"5.8"}, {"value":2500, "label":"5.9"},
+          {"value":2800, "label":"5.10a"}, {"value":3100, "label":"5.10b"},
+          {"value":3400, "label":"5.10c"}, {"value":4500, "label":"5.10d"},
+          {"value":4800, "label":"5.11a"}, {"value":5100, "label":"5.11b"},
+          {"value":5400, "label":"5.11c"}, {"value":6500, "label":"5.11d"},
+          {"value":6800, "label":"5.12a"}, {"value":7100, "label":"5.12b"},
+          {"value":7400, "label":"5.12c"}, {"value":8500, "label":"5.12d"},
+          {"value":8800, "label":"5.13a"}, {"value":9100, "label":"5.13b"},
+          {"value":9400, "label":"5.13c"}, {"value":10400, "label":"5.13d"}]
+
 # Plotly configuration
 config = {'displayModeBar': False}
 
@@ -41,6 +53,10 @@ app.layout = html.Div([
     dcc.Dropdown(list(range(2010, 2025)), list(range(2020, 2024)), 
                  multi=True, searchable=False, id='year-dropdown',
                  style={'width':'75vw'}),
+    html.Div(children=['Max Grade:',
+                       dcc.Dropdown(options=GRADES, value=8500, id='max-dropdown',
+                                    searchable=False, clearable=False)],
+            style={'width':'30vw'}),
     dcc.Checklist(['Include Multipitch Routes'],
                   ['Include Multipitch Routes'],
                   id='multi-filter'),
@@ -48,7 +64,8 @@ app.layout = html.Div([
               style={'width':'80vw', 'height':'80vh'})
 ])
 
-def parse_contents(contents, filename, criteria_type, criteria_send, criteria_year, criteria_multi):
+def parse_contents(contents, filename, criteria_type, criteria_send, criteria_year,
+                   criteria_max, criteria_multi):
     _, content_string = contents.split(',')
 
     # Decode the base64 string & Read CSV
@@ -64,14 +81,13 @@ def parse_contents(contents, filename, criteria_type, criteria_send, criteria_ye
         ticks = ticks.loc[ticks['Lead Style'].isin(criteria_send), :]
     if criteria_multi == []:
         ticks = ticks.loc[ticks['Pitches']==1, :]
+    ticks = ticks.loc[ticks['Rating Code'] <= criteria_max, :]
 
     # Calculate climbing pyramid metrics
     ticks['Grade'] = pd.cut(
         ticks['Rating Code'],
-        bins=[0, 1700, 1900, 2200, 2500, 2800, 3100, 3400, 3700, 4800, 5100,
-              5400, 5500, 6800, 7100, 7400, 7500],
-        labels=["5.easy", "5.7", "5.8", "5.9", "5.10a", "5.10b", "5.10c", "5.10d",
-                "5.11a", "5.11b", "5.11c", "5.11d", "5.12a", "5.12b", "5.12c", "5.12d"])
+        bins=[0] + [item['value'] for item in GRADES if item['value'] <= criteria_max],
+        labels=[item['label'] for item in GRADES if item['value'] <= criteria_max])
     counts = ticks.groupby('Grade', observed=False)['URL'].nunique().reset_index()
     counts.columns = ['Grade', 'Routes']
     counts.sort_values(by='Grade', ascending=False, inplace=True)
@@ -84,12 +100,14 @@ def parse_contents(contents, filename, criteria_type, criteria_send, criteria_ye
 @app.callback(
         Output('graph-pyramid', 'figure'),
         [Input('upload-data', 'contents'),
-         Input('type-dropdown', 'value'),
-         Input('send-dropdown', 'value'),
-         Input('year-dropdown', 'value'),
-         Input('multi-filter', 'value')],
+         Input('type-dropdown', "value"),
+         Input('send-dropdown', "value"),
+         Input('year-dropdown', "value"),
+         Input('max-dropdown', "value"),
+         Input('multi-filter', "value")],
          [dash.dependencies.State('upload-data', 'filename')])
-def update_output(contents, criteria_type, criteria_send, criteria_year, criteria_multi, filename):
+def update_output(contents, criteria_type, criteria_send, criteria_year,
+                 criteria_max, criteria_multi, filename):
     if contents is None:
         dummy = dict(
             Routes=[1, 0, 1, 0, 2, 3, 5, 8, 16, 32, 64, 80, 70, 90, 100, 120],
@@ -99,7 +117,7 @@ def update_output(contents, criteria_type, criteria_send, criteria_year, criteri
         return px.funnel(dummy, x='Routes', y='Grade', title="(Demo Data) Route Pyramid")
     else:
         fig = parse_contents(contents, filename, criteria_type, criteria_send, criteria_year,
-                             criteria_multi)
+                             criteria_max, criteria_multi)
         return fig
 
 if __name__ == '__main__':
