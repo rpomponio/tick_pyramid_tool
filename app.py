@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import dash
 from dash import dcc, html, Input, Output
+from datetime import date
 import pandas as pd
 import base64
 import io
@@ -50,9 +51,9 @@ app.layout = html.Div([
                  ['Onsight', 'Flash', 'Redpoint'],
                  multi=True, searchable=False, id='send-dropdown',
                  style={'width':'75vw'}),
-    dcc.Dropdown(list(range(2010, 2025)), list(range(2020, 2024)), 
-                 multi=True, searchable=False, id='year-dropdown',
-                 style={'width':'75vw'}),
+    dcc.DatePickerRange(min_date_allowed=date(2010, 1, 1),
+                 max_date_allowed=date(2025, 1, 1), end_date=date.today(),
+                 id='date-range', style={'width':'75vw'}),
     html.Div(children=['Max Grade:',
                        dcc.Dropdown(options=GRADES, value=8500, id='max-dropdown',
                                     searchable=False, clearable=False)],
@@ -64,7 +65,7 @@ app.layout = html.Div([
               style={'width':'80vw', 'height':'80vh'})
 ])
 
-def parse_contents(contents, filename, criteria_type, criteria_send, criteria_year,
+def parse_contents(contents, filename, criteria_type, criteria_send, start_date, end_date,
                    criteria_max, criteria_multi):
     _, content_string = contents.split(',')
 
@@ -74,7 +75,10 @@ def parse_contents(contents, filename, criteria_type, criteria_send, criteria_ye
 
     # Filter the dataframe based on criteria
     ticks = ticks.loc[ticks['Route Type'].isin(criteria_type), :]
-    ticks = ticks.loc[ticks['Date'].dt.year.isin(criteria_year), :]
+    if start_date is not None:
+        ticks = ticks.loc[ticks['Date'] >= pd.to_datetime(start_date), :]
+    if end_date is not None:
+        ticks = ticks.loc[ticks['Date'] <= pd.to_datetime(end_date), :]
     if 'N/A' in criteria_send:
         ticks = ticks.loc[ticks['Lead Style'].isna() | ticks['Lead Style'].isin(criteria_send), :]
     else:
@@ -102,11 +106,12 @@ def parse_contents(contents, filename, criteria_type, criteria_send, criteria_ye
         [Input('upload-data', 'contents'),
          Input('type-dropdown', "value"),
          Input('send-dropdown', "value"),
-         Input('year-dropdown', "value"),
+         Input('date-range', "start_date"),
+         Input('date-range', "end_date"),
          Input('max-dropdown', "value"),
          Input('multi-filter', "value")],
          [dash.dependencies.State('upload-data', 'filename')])
-def update_output(contents, criteria_type, criteria_send, criteria_year,
+def update_output(contents, criteria_type, criteria_send, start_date, end_date,
                  criteria_max, criteria_multi, filename):
     if contents is None:
         dummy = dict(
@@ -116,7 +121,7 @@ def update_output(contents, criteria_type, criteria_send, criteria_year,
                    "5.10b", "5.10a", "5.9", "5.8", "5.7", "5.easy"])
         return px.funnel(dummy, x='Routes', y='Grade', title="(Demo Data) Route Pyramid")
     else:
-        fig = parse_contents(contents, filename, criteria_type, criteria_send, criteria_year,
+        fig = parse_contents(contents, filename, criteria_type, criteria_send, start_date, end_date,
                              criteria_max, criteria_multi)
         return fig
 
