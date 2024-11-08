@@ -162,3 +162,6 @@ cython_debug/
 .DS_Store
 Examples/*
 .Rproj.user
+
+
+rsconnect/*
