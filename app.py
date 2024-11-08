@@ -52,7 +52,7 @@ app.layout = html.Div([
                  multi=True, searchable=False, id='send-dropdown',
                  style={'width':'75vw'}),
     dcc.DatePickerRange(min_date_allowed=date(2010, 1, 1),
-                 max_date_allowed=date(2025, 1, 1), end_date=date.today(),
+                 max_date_allowed=date(2025, 1, 1), start_date=date(2022, 1, 1), end_date=date.today(),
                  id='date-range', style={'width':'75vw'}),
     html.Div(children=['Max Grade:',
                        dcc.Dropdown(options=GRADES, value=8500, id='max-dropdown',
