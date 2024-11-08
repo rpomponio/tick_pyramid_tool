@@ -18,7 +18,7 @@ ui <- fluidPage(
                 placeholder="https://www.mountainproject.com/user/USERNUM/USER-NAME"),
       tags$hr(),
       checkboxInput("redpoints_only", "Filter to 'Redpoints Only'", TRUE),
-      h6("'Redpoints' include only the following: Flash, Onsight,
+      h6("'Redpoints' include only the following Lead Styles: Flash, Onsight,
          Redpoint, Pinkpoint"),
       selectInput("date_min", "Select beginning of date range", choices = NULL),
       selectInput("date_max", "Select end of date range", choices = NULL),
@@ -82,8 +82,8 @@ server <- function(input, output, session) {
   output$table <- renderDT({
     req(data())
     df <- data() %>%
-      select(Date, Route, YDS, `Route Type`, `Lead Style`, Redpoint)
-    datatable(df)
+      select(Date, Route, YDS, `Route Type`, Location, `Lead Style`, Redpoint)
+    datatable(df, filter="top")
   })
   
   # Render grade distribution plot
@@ -108,7 +108,7 @@ server <- function(input, output, session) {
       labs(title="Route-Climbing Pyramid", x="Routes", y="Grade") +
       scale_x_continuous(breaks=count_range_seq, labels=abs(count_range_seq)) +
       theme_minimal()
-    ggplotly(p, tooltip=c("y", "x"))
+    ggplotly(p, tooltip=c("y", "x")) %>% config(displayModeBar=FALSE)
   })
   
   # Render climbing frequency over time plot
@@ -141,7 +141,7 @@ server <- function(input, output, session) {
         breaks=cummax.df$grade_rank,
         labels=cummax.df$YDS) +
       theme_minimal()
-    ggplotly(p, tooltip=c("x", "label"))
+    ggplotly(p, tooltip=c("label", "x")) %>% config(displayModeBar=FALSE)
   })
 }
 
