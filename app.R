@@ -8,29 +8,33 @@ library(DT)
 
 # Define UI
 ui <- fluidPage(
-  titlePanel("Mountain Project Tick Pyramid"),
+  titlePanel("Tick Pyramid Tool 🏔️ 📈"),
   
   sidebarLayout(
     sidebarPanel(
-      fileInput("file", "Upload your ticks data (CSV format)",
+      fileInput("file", "Upload your tick data (CSV format)",
                 accept = c(".csv")),
-      textInput("user_url", label="Or, copy/paste your Profile URL", value="",
+      textInput("user_url", label="Or, copy/paste your profile URL", value="",
                 placeholder="https://www.mountainproject.com/user/USERNUM/USER-NAME"),
       h5("Instructions: Upload a CSV file containing your ticks data (exported
          from MountainProject.com), or paste the URL of your Mountain Project
          profile page (the page that displays your profile picture)."),
       tags$hr(),
       checkboxInput("unique", "Filter to unique routes only", value=TRUE),
+      selectInput("type", "Filter route type", choices=c("", "Sport", "Trad", "TR"),
+                  selected=""),
       selectInput("date_min", "Select beginning of date range", choices=NULL),
       selectInput("date_max", "Select end of date range", choices=NULL),
-      tags$hr()
+      tags$hr(),
+      h6("DISCLAIMER: This tool is not affiliated with Mountain Project or OnX
+         and is for individual climber use only.")
     ),
     
     mainPanel(
       tabsetPanel(
         tabPanel("Data Table", DTOutput("table")),
         tabPanel("Route Pyramid", plotlyOutput("gradePlot")),
-        tabPanel("Route Progression", plotlyOutput("timePlot"))
+        tabPanel("My Progression", plotlyOutput("timePlot"))
       )
     )
   )
@@ -61,10 +65,14 @@ server <- function(input, output, session) {
                  "5.12c", "5.12d", "5.13a", "5.13b", "5.13c", "5.13d"),
         ordered_result=TRUE)) %>%
       filter(!is.na(YDS)) %>%
-      mutate(Redpoint=case_when(
+      mutate(Redpoint=factor(case_when(
         `Lead Style` %in% c("Redpoint", "Pinkpoint", "Onsight", "Flash") ~ "Y",
-        TRUE ~ "N")) %>%
+        TRUE ~ "N"))) %>%
       mutate(Date=ymd(Date))
+    if (input$type != ""){
+      clean <- clean %>%
+        filter(grepl(input$type, `Route Type`))
+    }
     if (input$unique){
       clean <- clean %>%
         group_by(URL, Route, `Route Type`, `Rating Code`, YDS, Location) %>%
@@ -75,7 +83,7 @@ server <- function(input, output, session) {
           Redpoint=first(Redpoint)) %>%
         ungroup()
     }
-    clean
+    arrange(clean, desc(Date))
   })
   
   # Update dropdown options for plotting
@@ -93,7 +101,11 @@ server <- function(input, output, session) {
     df <- data() %>%
       filter(between(Date, ymd(input$date_min), ymd(input$date_max))) %>%
       select(Date, Route, YDS, `Route Type`, Location, `Lead Style`, Redpoint)
-    datatable(df, filter="top")
+    datatable(df, filter="top", options=list(
+      dom="ltp",
+      pageLength=20,
+      lengthMenu=c(20, 50, 100)),
+      rownames=FALSE)
   })
   
   # Render grade distribution plot
