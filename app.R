@@ -20,6 +20,7 @@ ui <- fluidPage(
          from MountainProject.com), or paste the URL of your Mountain Project
          profile page (the page that displays your profile picture)."),
       tags$hr(),
+      h5("Note: The 'Redpoint' category includes onsights and flashes."),
       checkboxInput("unique", "Filter to unique routes only", value=TRUE),
       selectInput("type", "Filter route type", choices=c("", "Sport", "Trad", "TR"),
                   selected=""),
@@ -119,14 +120,14 @@ server <- function(input, output, session) {
       mutate(xcount=case_when(
         Redpoint=="Y" ~ Count,
         Redpoint=="N" ~ -Count))
-    count_range <- range(-pyramid.df$xcount[pyramid.df$xcount < 0])
+    count_range <- range(pyramid.df$Count)
     count_range_seq <- c(-pretty(count_range, n=5), pretty(count_range, n=5))
     p <- ggplot(pyramid.df, aes(x=xcount, y=YDS, group=Redpoint, label=Count)) +
       geom_col(aes(fill=Redpoint, color=Redpoint)) +
       scale_fill_manual(values=c("lightblue", "pink")) +
       scale_color_manual(values=c("darkblue", "darkred")) +
       labs(title="Route Climbing Pyramid", x="Routes", y="Grade") +
-      scale_x_continuous(limits=c(min(pyramid.df$xcount), -min(pyramid.df$xcount)),
+      scale_x_continuous(limits=c(-max(pyramid.df$Count), max(pyramid.df$Count)),
                          breaks=count_range_seq, labels=abs(count_range_seq)) +
       theme_minimal()
     ggplotly(p, tooltip=c("group", "y", "label")) %>%
